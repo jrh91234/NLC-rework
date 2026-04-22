@@ -4,58 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Scanner to Google Sheet</title>
-    <!-- ใช้ Tailwind CSS สำหรับความสวยงามและการแสดงผลบนมือถือ -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ไลบรารีสำหรับอ่าน QR Code และ Data Matrix -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <!-- ไอคอน -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
         #reader { width: 100%; border-radius: 0.5rem; overflow: hidden; }
         #reader video { object-fit: cover; }
-        /* ซ่อน UI เริ่มต้นของไลบรารีบางส่วนเพื่อให้เราสร้าง UI เอง */
         #reader__dashboard_section_csr span { display: none !important; }
     </style>
 </head>
 <body class="flex flex-col h-screen text-gray-800">
 
-    <!-- Header -->
-    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center z-10">
+    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-center items-center z-10">
         <h1 class="text-xl font-bold"><i class="fas fa-qrcode mr-2"></i> สแกนลง Sheet</h1>
-        <button id="btnSettings" class="text-white p-2">
-            <i class="fas fa-cog text-xl"></i>
-        </button>
     </header>
 
-    <!-- Settings Modal (ตั้งค่า URL) -->
-    <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 class="text-lg font-bold mb-4">ตั้งค่า Google Sheet API</h2>
-            <p class="text-sm text-gray-500 mb-4">นำ URL ของ Web App จาก Google Apps Script มาใส่ที่นี่ (ต้องทำเพียงครั้งเดียว)</p>
-            <input type="text" id="apiUrlInput" class="w-full border border-gray-300 rounded-lg p-3 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://script.google.com/macros/s/...">
-            <div class="flex justify-end gap-2">
-                <button id="btnCancelSettings" class="px-4 py-2 bg-gray-200 rounded-lg text-gray-700">ยกเลิก</button>
-                <button id="btnSaveSettings" class="px-4 py-2 bg-blue-600 rounded-lg text-white font-semibold">บันทึก</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
     <main class="flex-grow flex flex-col p-4 relative">
-        
-        <!-- Camera Area -->
         <div class="bg-black rounded-xl shadow-inner relative flex-grow max-h-[50vh] flex items-center justify-center overflow-hidden">
             <div id="reader"></div>
-            
-            <!-- Placeholder before camera starts -->
             <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-white/50 z-0">
                 <i class="fas fa-camera text-4xl mb-2"></i>
                 <p>กดปุ่มเริ่มสแกนเพื่อเปิดกล้อง</p>
             </div>
         </div>
 
-        <!-- Controls -->
         <div class="flex justify-center gap-4 mt-6">
             <button id="btnStart" class="bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-full shadow-lg font-bold flex items-center gap-2 transition flex-1 justify-center">
                 <i class="fas fa-play"></i> เริ่มสแกน
@@ -69,7 +42,6 @@
             <input type="file" id="fileInput" accept="image/*" class="hidden">
         </div>
 
-        <!-- Scan Result Area -->
         <div class="mt-6 bg-white p-4 rounded-xl shadow-md">
             <label class="block text-sm font-semibold text-gray-700 mb-2">ผลการสแกน</label>
             <div class="flex gap-2">
@@ -80,7 +52,6 @@
             </div>
         </div>
 
-        <!-- Loading / Notification -->
         <div id="notification" class="mt-4 text-center text-sm font-semibold p-3 rounded-lg hidden transition-all duration-300"></div>
 
     </main>
@@ -90,7 +61,6 @@
             let html5QrCode = null;
             const readerElementId = "reader";
             
-            // DOM Elements
             const btnStart = document.getElementById('btnStart');
             const btnStop = document.getElementById('btnStop');
             const btnSubmit = document.getElementById('btnSubmit');
@@ -99,31 +69,14 @@
             const notification = document.getElementById('notification');
             const fileInput = document.getElementById('fileInput');
             
-            // Settings DOM
-            const btnSettings = document.getElementById('btnSettings');
-            const settingsModal = document.getElementById('settingsModal');
-            const btnCancelSettings = document.getElementById('btnCancelSettings');
-            const btnSaveSettings = document.getElementById('btnSaveSettings');
-            const apiUrlInput = document.getElementById('apiUrlInput');
+            // ฝัง URL ของ Google Apps Script ไว้ตรงนี้เลย
+            const gasUrl = "https://script.google.com/macros/s/AKfycbwR_T6rWonZ3yoRBZdbbnUeYPrV9QSWit9xAlNi3TockFKSuffOS3Jt7cMgp0ctVgL_cA/exec";
+            
+            // ตัวแปรเก็บค่าล่าสุดที่สแกน/บันทึก เพื่อเช็คซ้ำฝั่งเว็บ
+            let lastSubmittedData = '';
 
-            // Load saved URL from localStorage
-            let gasUrl = localStorage.getItem('gasWebUrl') || '';
-            apiUrlInput.value = gasUrl;
-
-            // Settings Logic
-            btnSettings.addEventListener('click', () => settingsModal.classList.remove('hidden'));
-            btnCancelSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
-            btnSaveSettings.addEventListener('click', () => {
-                gasUrl = apiUrlInput.value.trim();
-                localStorage.setItem('gasWebUrl', gasUrl);
-                settingsModal.classList.add('hidden');
-                showNotification('บันทึก URL เรียบร้อยแล้ว', 'success');
-            });
-
-            // Initialize Scanner
             function initScanner() {
                 if (!html5QrCode) {
-                    // เปิดใช้งาน BarcodeDetector API ของมือถือ (ถ้ามี) จะอ่าน Data Matrix ได้แม่นยำกว่ามาก
                     html5QrCode = new Html5Qrcode(readerElementId, {
                         experimentalFeatures: {
                             useBarCodeDetectorIfSupported: true
@@ -132,29 +85,24 @@
                 }
             }
 
-            // Function to handle successful scan
             const onScanSuccess = (decodedText, decodedResult) => {
-                // Vibrate if supported (Mobile)
                 if (navigator.vibrate) navigator.vibrate(200);
-
-                // Stop scanning to prevent multiple triggers
                 stopScanner();
-
-                // Display result
+                
                 scanResultInput.value = decodedText;
-                btnSubmit.disabled = false;
                 
-                showNotification('สแกนสำเร็จ!', 'success');
-                
-                // Auto-submit option (Uncomment below to submit automatically upon scan)
-                // submitToGoogleSheet();
+                // เช็คซ้ำฝั่ง Web App ก่อนเลย
+                if (decodedText === lastSubmittedData) {
+                    showNotification('ข้อมูลนี้พึ่งถูกบันทึกไปแล้ว', 'warning');
+                    btnSubmit.disabled = true;
+                } else {
+                    btnSubmit.disabled = false;
+                    showNotification('สแกนสำเร็จ! กดบันทึกได้เลย', 'success');
+                }
             };
 
-            const onScanFailure = (error) => {
-                // Background scan errors (keep quiet)
-            };
+            const onScanFailure = (error) => {};
 
-            // Start Camera
             async function startScanner() {
                 initScanner();
                 cameraPlaceholder.classList.add('hidden');
@@ -164,12 +112,10 @@
                 btnSubmit.disabled = true;
 
                 try {
-                    // Start looking for codes via the rear camera
                     await html5QrCode.start(
-                        { facingMode: "environment" }, // ใช้กล้องหลัง
+                        { facingMode: "environment" },
                         {
                             fps: 10,
-                            // เอา qrbox ออก เพื่อสแกนแบบเต็มจอ ป้องกันปัญหากรอบสแกนบีบแคบไป
                             formatsToSupport: [ Html5QrcodeSupportedFormats.DATA_MATRIX, Html5QrcodeSupportedFormats.QR_CODE ]
                         },
                         onScanSuccess,
@@ -181,7 +127,6 @@
                 }
             }
 
-            // Stop Camera
             async function stopScanner() {
                 if (html5QrCode && html5QrCode.isScanning) {
                     try {
@@ -195,14 +140,7 @@
                 btnStop.classList.add('hidden');
             }
 
-            // Submit Data to Google Sheets API
             async function submitToGoogleSheet() {
-                if (!gasUrl) {
-                    showNotification('กรุณาตั้งค่า Google Web App URL ก่อน', 'error');
-                    settingsModal.classList.remove('hidden');
-                    return;
-                }
-
                 const dataText = scanResultInput.value;
                 if (!dataText) return;
 
@@ -210,32 +148,35 @@
                 btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> กำลังบันทึก...';
                 
                 try {
-                    // ส่งข้อมูลแบบ GET method ไปที่ Google Apps Script
                     const response = await fetch(`${gasUrl}?text=${encodeURIComponent(dataText)}`);
                     const result = await response.json();
 
                     if (result.status === 'success') {
                         showNotification('บันทึกลง Sheet สำเร็จ!', 'success');
-                        scanResultInput.value = ''; // เคลียร์ช่องข้อความ
+                        lastSubmittedData = dataText; // เก็บค่าไว้กันส่งซ้ำ
+                        scanResultInput.value = ''; // เคลียร์ช่อง
                     } else {
-                        showNotification('เกิดข้อผิดพลาด: ' + result.message, 'error');
+                        // แจ้งเตือนกรณี Sheet ฟ้องว่าซ้ำ
+                        showNotification('❌ ' + result.message, 'warning');
                     }
                 } catch (error) {
-                    showNotification('เชื่อมต่อขัดข้อง: ตรวจสอบ URL หรืออินเทอร์เน็ต', 'error');
+                    showNotification('เชื่อมต่อขัดข้อง: ตรวจสอบอินเทอร์เน็ต', 'error');
                     console.error(error);
                 } finally {
                     btnSubmit.innerHTML = '<i class="fas fa-paper-plane mr-1"></i> บันทึก';
-                    btnSubmit.disabled = scanResultInput.value === '';
+                    // ป้องกันการกดซ้ำจนกว่าจะสแกนใหม่
+                    btnSubmit.disabled = true; 
                 }
             }
 
-            // Show Notification Message
             function showNotification(message, type) {
                 notification.textContent = message;
-                notification.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+                notification.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800', 'bg-yellow-100', 'text-yellow-800');
                 
                 if (type === 'success') {
                     notification.classList.add('bg-green-100', 'text-green-800');
+                } else if (type === 'warning') {
+                    notification.classList.add('bg-yellow-100', 'text-yellow-800');
                 } else {
                     notification.classList.add('bg-red-100', 'text-red-800');
                 }
@@ -245,12 +186,10 @@
                 }, 4000);
             }
 
-            // Event Listeners
             btnStart.addEventListener('click', startScanner);
             btnStop.addEventListener('click', stopScanner);
             btnSubmit.addEventListener('click', submitToGoogleSheet);
             
-            // Handle Image Upload (สแกนจากรูปภาพ)
             fileInput.addEventListener('change', async (e) => {
                 if (e.target.files.length === 0) return;
                 initScanner();
@@ -264,11 +203,9 @@
                     scanResultInput.value = '';
                     showNotification('อ่านไม่ออก: ลองถ่ายรูปใหม่ให้ชัดเจนขึ้น', 'error');
                 }
-                // Reset input
                 e.target.value = '';
             });
 
-            // Handle cleanup if user leaves page
             window.addEventListener('beforeunload', stopScanner);
         });
     </script>
