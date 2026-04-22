@@ -36,6 +36,9 @@
             <button id="btnStop" class="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-full shadow-lg font-bold flex items-center gap-2 transition flex-1 justify-center hidden">
                 <i class="fas fa-stop"></i> หยุดกล้อง
             </button>
+            <button id="btnTorch" class="bg-gray-600 hover:bg-yellow-400 text-white px-4 py-3 rounded-full shadow-lg font-bold flex items-center gap-2 transition flex-1 justify-center hidden">
+                <i class="fas fa-lightbulb"></i> ไฟฉาย
+            </button>
             <label for="fileInput" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-3 rounded-full shadow-lg font-bold flex items-center gap-2 transition flex-1 justify-center cursor-pointer">
                 <i class="fas fa-image"></i> เลือกรูป
             </label>
@@ -63,17 +66,19 @@
             
             const btnStart = document.getElementById('btnStart');
             const btnStop = document.getElementById('btnStop');
+            const btnTorch = document.getElementById('btnTorch');
             const btnSubmit = document.getElementById('btnSubmit');
             const scanResultInput = document.getElementById('scanResult');
             const cameraPlaceholder = document.getElementById('cameraPlaceholder');
             const notification = document.getElementById('notification');
             const fileInput = document.getElementById('fileInput');
-            
+
             // ฝัง URL ของ Google Apps Script ไว้ตรงนี้เลย
             const gasUrl = "https://script.google.com/macros/s/AKfycbwR_T6rWonZ3yoRBZdbbnUeYPrV9QSWit9xAlNi3TockFKSuffOS3Jt7cMgp0ctVgL_cA/exec";
-            
+
             // ตัวแปรเก็บค่าล่าสุดที่สแกน/บันทึก เพื่อเช็คซ้ำฝั่งเว็บ
             let lastSubmittedData = '';
+            let torchOn = false;
 
             function initScanner() {
                 if (!html5QrCode) {
@@ -113,7 +118,7 @@
 
                 try {
                     await html5QrCode.start(
-                        { facingMode: "environment" },
+                        { facingMode: "environment", advanced: [{ focusMode: "continuous" }] },
                         {
                             fps: 10,
                             formatsToSupport: [ Html5QrcodeSupportedFormats.DATA_MATRIX, Html5QrcodeSupportedFormats.QR_CODE ]
@@ -121,6 +126,13 @@
                         onScanSuccess,
                         onScanFailure
                     );
+                    // Show torch button only if device supports it
+                    try {
+                        const caps = html5QrCode.getRunningTrackCameraCapabilities();
+                        if (caps.torchFeature().isSupported()) {
+                            btnTorch.classList.remove('hidden');
+                        }
+                    } catch (_) {}
                 } catch (err) {
                     showNotification("ไม่สามารถเปิดกล้องได้: " + err, "error");
                     stopScanner();
@@ -133,6 +145,10 @@
                 btnStart.classList.remove('hidden');
                 btnStart.disabled = true;
                 btnStop.classList.add('hidden');
+                btnTorch.classList.add('hidden');
+                torchOn = false;
+                btnTorch.classList.remove('bg-yellow-400');
+                btnTorch.classList.add('bg-gray-600');
 
                 if (html5QrCode && html5QrCode.isScanning) {
                     try {
@@ -149,6 +165,20 @@
                 }
 
                 btnStart.disabled = false;
+            }
+
+            async function toggleTorch() {
+                if (!html5QrCode || !html5QrCode.isScanning) return;
+                try {
+                    const caps = html5QrCode.getRunningTrackCameraCapabilities();
+                    if (!caps.torchFeature().isSupported()) return;
+                    torchOn = !torchOn;
+                    await caps.torchFeature().apply(torchOn);
+                    btnTorch.classList.toggle('bg-yellow-400', torchOn);
+                    btnTorch.classList.toggle('bg-gray-600', !torchOn);
+                } catch (err) {
+                    console.error("Torch toggle failed", err);
+                }
             }
 
             async function submitToGoogleSheet() {
@@ -199,6 +229,7 @@
 
             btnStart.addEventListener('click', startScanner);
             btnStop.addEventListener('click', stopScanner);
+            btnTorch.addEventListener('click', toggleTorch);
             btnSubmit.addEventListener('click', submitToGoogleSheet);
             
             fileInput.addEventListener('change', async (e) => {
