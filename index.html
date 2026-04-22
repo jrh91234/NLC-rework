@@ -27,6 +27,9 @@
                 <i class="fas fa-camera text-4xl mb-2"></i>
                 <p>กดปุ่มเริ่มสแกนเพื่อเปิดกล้อง</p>
             </div>
+            <div id="focusHint" class="absolute bottom-2 inset-x-0 text-center text-white/60 text-xs hidden pointer-events-none">
+                แตะที่ภาพเพื่อโฟกัส
+            </div>
         </div>
 
         <div class="flex justify-center gap-4 mt-6">
@@ -70,6 +73,7 @@
             const btnSubmit = document.getElementById('btnSubmit');
             const scanResultInput = document.getElementById('scanResult');
             const cameraPlaceholder = document.getElementById('cameraPlaceholder');
+            const focusHint = document.getElementById('focusHint');
             const notification = document.getElementById('notification');
             const fileInput = document.getElementById('fileInput');
 
@@ -132,6 +136,7 @@
                             advanced: [{ focusMode: "continuous" }]
                         });
                     } catch (_) {}
+                    focusHint.classList.remove('hidden');
                     // Show torch button only if device supports it
                     try {
                         const caps = html5QrCode.getRunningTrackCameraCapabilities();
@@ -152,6 +157,7 @@
                 btnStart.disabled = true;
                 btnStop.classList.add('hidden');
                 btnTorch.classList.add('hidden');
+                focusHint.classList.add('hidden');
                 torchOn = false;
                 btnTorch.classList.remove('bg-yellow-400');
                 btnTorch.classList.add('bg-gray-600');
@@ -240,12 +246,25 @@
             
             fileInput.addEventListener('change', async (e) => {
                 if (e.target.files.length === 0) return;
-                initScanner();
                 const file = e.target.files[0];
+                // Stop camera if running before switching to file scan
+                if (html5QrCode && html5QrCode.isScanning) {
+                    await stopScanner();
+                }
+                btnSubmit.disabled = true;
+                scanResultInput.value = 'กำลังวิเคราะห์รูปภาพ...';
+                // Use a dedicated instance for file scanning without BarcodeDetector API
+                // (native BarcodeDetector can fail on image files for certain formats/devices)
+                const fileScanner = new Html5Qrcode(readerElementId, {
+                    formatsToSupport: [Html5QrcodeSupportedFormats.DATA_MATRIX, Html5QrcodeSupportedFormats.QR_CODE]
+                });
                 try {
-                    btnSubmit.disabled = true;
-                    scanResultInput.value = 'กำลังวิเคราะห์รูปภาพ...';
-                    const decodedText = await html5QrCode.scanFile(file, true);
+                    let decodedText;
+                    try {
+                        decodedText = await fileScanner.scanFile(file, false);
+                    } finally {
+                        try { fileScanner.clear(); } catch (_) {}
+                    }
                     onScanSuccess(decodedText, null);
                 } catch (err) {
                     scanResultInput.value = '';
