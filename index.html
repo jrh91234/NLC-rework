@@ -128,6 +128,12 @@
             }
 
             async function stopScanner() {
+                // Show UI immediately so user sees feedback right away
+                cameraPlaceholder.classList.remove('hidden');
+                btnStart.classList.remove('hidden');
+                btnStart.disabled = true;
+                btnStop.classList.add('hidden');
+
                 if (html5QrCode && html5QrCode.isScanning) {
                     try {
                         await html5QrCode.stop();
@@ -135,9 +141,8 @@
                         console.error("Failed to stop scanner", err);
                     }
                 }
-                cameraPlaceholder.classList.remove('hidden');
-                btnStart.classList.remove('hidden');
-                btnStop.classList.add('hidden');
+
+                btnStart.disabled = false;
             }
 
             async function submitToGoogleSheet() {
