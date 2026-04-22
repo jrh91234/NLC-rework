@@ -118,7 +118,7 @@
 
                 try {
                     await html5QrCode.start(
-                        { facingMode: "environment", advanced: [{ focusMode: "continuous" }] },
+                        { facingMode: "environment" },
                         {
                             fps: 10,
                             formatsToSupport: [ Html5QrcodeSupportedFormats.DATA_MATRIX, Html5QrcodeSupportedFormats.QR_CODE ]
@@ -126,6 +126,12 @@
                         onScanSuccess,
                         onScanFailure
                     );
+                    // Apply continuous autofocus after start (needed for small Data Matrix codes at close range)
+                    try {
+                        await html5QrCode.applyVideoConstraints({
+                            advanced: [{ focusMode: "continuous" }]
+                        });
+                    } catch (_) {}
                     // Show torch button only if device supports it
                     try {
                         const caps = html5QrCode.getRunningTrackCameraCapabilities();
